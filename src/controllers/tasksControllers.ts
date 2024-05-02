@@ -1,11 +1,11 @@
 import { Request, Response } from 'express';
 import { QueryResult } from 'pg';
-import { pool } from '../database/database';
+import { Task } from '../models/Task';
 
 export const getTasks = async (req: Request, res: Response): Promise<Response> => {
     try {
-        const response: QueryResult = await pool.query('SELECT * FROM tasks');
-        return res.status(200).json(response.rows);
+        const tasks = await Task.findAll();
+        return res.status(200).json(tasks);
     } catch (error) {
         console.error(error);
         return res.status(500).json('Internal Server error');
@@ -14,16 +14,11 @@ export const getTasks = async (req: Request, res: Response): Promise<Response> =
 
 export const getTaskById = async (req: Request, res: Response): Promise<Response> => {
     try {
-        const query = {
-            text: 'SELECT * FROM tasks WHERE id = $1',
-            values: [req.params.id],
-        };
-
-        const response: QueryResult = await pool.query(query);
-        if (response.rows.length === 0) {
-            return res.status(404).json('Dont Id in BD');
+        const task = await Task.findByPk(req.params.id);
+        if (!task) {
+            return res.status(404).json(`Dont id: ${req.params.id} in BD`);
         }
-        return res.status(200).json(response.rows);
+        return res.status(200).json(task);
     } catch (error) {
         console.error(error);
         return res.status(500).json('Internal Server error');
@@ -33,20 +28,11 @@ export const getTaskById = async (req: Request, res: Response): Promise<Response
 export const createTask = async (req: Request, res: Response): Promise<Response> => {
     const { title, description, completed } = req.body;
     try {
-        const query = {
-            text: 'INSERT INTO tasks (title, description, completed) VALUES ($1, $2, $3)',
-            values: [title, description, completed],
-        };
-
-        await pool.query(query);
+        const task = await Task.create({ title, description, completed });
 
         return res.status(201).json({
             message: 'Task created successfully',
-            task: {
-                title,
-                description,
-                completed,
-            },
+            task,
         });
     } catch (error) {
         return res.status(404).json(error);
@@ -58,12 +44,20 @@ export const updateTask = async (req: Request, res: Response): Promise<Response>
     const { title, description, completed } = req.body;
 
     try {
-        const query = {
-            text: 'UPDATE tasks SET title = $1, description = $2, completed = $3 WHERE id = $4',
-            values: [title, description, completed, id],
-        };
+        const task = await Task.findByPk(id);
 
-        await pool.query(query);
+        if (!task) {
+            return res.status(404).json({ error: `Task ${id} not found` });
+        }
+
+        await Task.update(
+            { title, description, completed },
+            {
+                where: {
+                    id,
+                },
+            },
+        );
 
         return res.status(200).json({
             message: 'Task updated successfully',
@@ -81,18 +75,19 @@ export const updateTask = async (req: Request, res: Response): Promise<Response>
 };
 
 export const deleteTask = async (req: Request, res: Response): Promise<Response> => {
-    const id = req.params.id;
-    // TODO: обработать ошибку, если id в БД нет
-    const query = {
-        text: 'DELETE FROM tasks WHERE id = $1',
-        values: [id],
-    };
+    const { id } = req.params;
 
     try {
-        const response: QueryResult = await pool.query(query);
+        const task = await Task.findByPk(id);
+
+        if (!task) {
+            return res.status(404).json({ error: `Can't delete ${id}` });
+        }
+
+        await task.destroy();
+
         return res.status(200).json(`Task ${id} deleted successfully`);
     } catch (error) {
-        console.error(error);
-        return res.status(500).json('Internal Server error');
+        return res.status(500).json(error);
     }
 };

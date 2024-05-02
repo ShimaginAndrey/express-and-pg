@@ -1,5 +1,7 @@
-import express from "express";
-import taskRouter from "./routes";
+import express from 'express';
+import taskRouter from './routes';
+import { sequelize } from './database/database';
+
 const app = express();
 
 app.use(express.json());
@@ -8,6 +10,9 @@ app.use(express.urlencoded({ extended: false }));
 app.use(taskRouter);
 
 const PORT = 3000;
-app.listen(PORT, () => {
-  console.log(`Server is start on port ${PORT}`);
+
+sequelize.sync().then(() => {
+    app.listen(PORT, () => {
+        console.log(`Server is running at http://localhost:${PORT}`);
+    });
 });
